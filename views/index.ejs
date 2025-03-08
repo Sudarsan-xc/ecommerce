@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product List</title>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            color: #004d4d;
+        }
+        form {
+            margin-bottom: 30px;
+        }
+        input[type="text"] {
+            padding: 10px;
+            width: 280px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type="text"]:focus {
+            border-color: #ff6600;
+        }
+        button {
+            padding: 10px 16px;
+            background-color: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover {
+            background-color: #e65c00;
+        }
+        
+        .products {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .product {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease-in-out;
+            width: 180px; /* Adjusted width for compact look */
+            overflow: hidden;
+        }
+        .product:hover {
+            transform: scale(1.05);
+        }
+
+        .product img {
+            width: 100%;
+            height: 150px; /* Fixed height for uniformity */
+            object-fit: contain; /* Ensures the image scales properly */
+            border-radius: 5px;
+        }
+
+        .product h2 {
+            font-size: 1em;
+            margin: 5px 0;
+            color: #004d4d;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .product p {
+            font-size: 0.85em;
+            margin: 3px 0;
+            color: #555;
+            height: 36px; /* Limits description height */
+            overflow: hidden;
+        }
+
+        .price {
+            font-weight: bold;
+            color: #d9534f;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CONSUMER PORTAL</h1>
+    <h2>Product List</h2>
+    <form action="/products/filter" method="get">
+        <input type="text" name="query" placeholder="Search products..." required>
+        <button type="submit">Filter</button>
+    </form>
+    
+    <div class="products">
+        <% if (products.length > 0) { %>
+            <% products.forEach(product => { %>
+                <div class="product">
+                    <img src="<%= product.imageUrl %>" alt="<%= product.name %>">
+                    <h2><%= product.name %></h2>
+                    <p><%= product.description %></p>
+                    <p class="price">Rs. <%= product.price.toFixed(2) %></p>
+                </div>
+            <% }) %>
+        <% } else { %>
+            <p>No products found.</p>
+        <% } %>
+    </div>
+</body>
+</html>

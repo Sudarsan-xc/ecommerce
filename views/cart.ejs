@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Cart</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header>
+        <div class="logo">My E-Commerce</div>
+        <div class="cart">
+            <a href="/cart">🛒 Cart (<%= cart.length %>)</a>
+            <p>Total: Rs. <%= totalAmount.toFixed(2) %></p>
+        </div>
+    </header>
+
+    <div class="cart-items">
+        <% cart.forEach(item => { %>
+            <div class="cart-item">
+                <img src="<%= item.product.imageUrl %>" alt="<%= item.product.name %>">
+                <div class="cart-item-details">
+                    <h3><%= item.product.name %></h3>
+                    <p>Price: Rs. <%= item.product.price.toFixed(2) %></p>
+                    <form action="/remove-from-cart" method="POST">
+                        <input type="hidden" name="productId" value="<%= item.product._id %>">
+                        <button type="submit">Remove</button>
+                    </form>
+                    <form action="/update-quantity" method="POST">
+                        <input type="hidden" name="productId" value="<%= item.product._id %>">
+                        <input type="number" name="quantity" value="<%= item.quantity %>" min="1" required>
+                        <button type="submit">Update Quantity</button>
+                    </form>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+
+    <footer>
+        &copy; 2025 My E-Commerce. All Rights Reserved.
+    </footer>
+</body>
+</html>
