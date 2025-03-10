@@ -1,37 +1,46 @@
 const express = require('express');
-const Product = require('../models/product'); // Assuming your product schema is in "models/product.js"
+const Product = require('../models/product');
 const router = express.Router();
+const natural = require('natural');
+const TfIdf = natural.TfIdf;
+const stemmer = natural.PorterStemmer;
+const levenshtein = require('fast-levenshtein');
+
+// Define Synonyms
+const synonyms = {
+    "coke": ["coca cola", "cola"],
+    "pepsi": ["pepsi cola"],
+    "burger": ["hamburger"],
+};
+
+const expandQuery = (query) => {
+    const words = query.toLowerCase().split(" ");
+    let expandedWords = new Set(words);
+    
+    words.forEach(word => {
+        if (synonyms[word]) {
+            synonyms[word].forEach(syn => expandedWords.add(syn));
+        }
+    });
+    
+    return Array.from(expandedWords).join(" ");
+};
 
 // Add product to cart
 router.post('/add-to-cart', async (req, res) => {
     const productId = req.body.productId;
-
     try {
-        // Find the product by ID
         const product = await Product.findById(productId);
-
-        // Check if the product exists
-        if (!product) {
-            return res.status(404).send('Product not found');
-        }
-
-        // Initialize the cart if it doesn't exist
-        if (!req.session.cart) {
-            req.session.cart = [];
-        }
-
-        // Check if the product is already in the cart
+        if (!product) return res.status(404).send('Product not found');
+        
+        if (!req.session.cart) req.session.cart = [];
         const existingProductIndex = req.session.cart.findIndex(item => item.product._id.toString() === productId);
-
+        
         if (existingProductIndex === -1) {
-            // If the product is not in the cart, add it
             req.session.cart.push({ product, quantity: 1 });
         } else {
-            // If the product is already in the cart, increment the quantity
             req.session.cart[existingProductIndex].quantity += 1;
         }
-
-        // Redirect to the cart page
         res.redirect('/cart');
     } catch (err) {
         console.error(err);
@@ -42,77 +51,74 @@ router.post('/add-to-cart', async (req, res) => {
 // View cart
 router.get('/cart', (req, res) => {
     const cart = req.session.cart || [];
-    let totalAmount = 0;
-
-    cart.forEach(item => {
-        totalAmount += item.product.price * item.quantity;
-    });
-
-    // If cart is empty, show a message
-    if (cart.length === 0) {
-        return res.render('cart', { cart, totalAmount, message: 'Your cart is empty!' });
-    }
-
-    res.render('cart', { cart, totalAmount });
+    let totalAmount = cart.reduce((total, item) => total + item.product.price * item.quantity, 0);
+    res.render('cart', { cart, totalAmount, message: cart.length === 0 ? 'Your cart is empty!' : '' });
 });
 
 // Remove product from cart
 router.post('/remove-from-cart', (req, res) => {
-    const productId = req.body.productId;
-
-    // Remove product from cart
-    req.session.cart = req.session.cart.filter(item => item.product._id.toString() !== productId);
-
-    // Redirect to cart page
+    req.session.cart = req.session.cart.filter(item => item.product._id.toString() !== req.body.productId);
     res.redirect('/cart');
 });
 
 // Update product quantity in cart
 router.post('/update-quantity', (req, res) => {
     const { productId, quantity } = req.body;
-
     const productIndex = req.session.cart.findIndex(item => item.product._id.toString() === productId);
-
+    
     if (productIndex !== -1) {
         if (quantity <= 0) {
-            // If the quantity is 0 or less, remove the product
             req.session.cart.splice(productIndex, 1);
         } else {
-            // Update the quantity
             req.session.cart[productIndex].quantity = quantity;
         }
     }
-
-    // Redirect to cart page
     res.redirect('/cart');
 });
 
-// Category filter route
-router.get('/products', async (req, res) => {
-    const category = req.query.category || "";
-    try {
-        let products;
-        if (category) {
-            products = await Product.find({ category });
-        } else {
-            products = await Product.find();
-        }
-        res.render('index', { products });
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("Internal Server Error");
-    }
-});
-
-// Search products route
+// Filter and search products with synonyms and TF-IDF
 router.get('/filter', async (req, res) => {
-    const query = req.query.query || "";
+    let { query } = req.query;
+    const productsPerPage = 6;
+    const page = parseInt(req.query.page) || 1;
     try {
-        const products = await Product.find({ name: new RegExp(query, 'i') });
-        res.render('index', { products, query });
+        let products = await Product.find();
+        if (!query) {
+            return res.render('index', {
+                products: products.slice((page - 1) * productsPerPage, page * productsPerPage),
+                currentPage: page,
+                totalPages: Math.ceil(products.length / productsPerPage),
+                query: ''
+            });
+        }
+        
+        query = expandQuery(query);
+        const tfidf = new TfIdf();
+        products.forEach(product => {
+            let productText = `${product.name} ${product.description} ${product.attributes.join(' ')}`;
+            tfidf.addDocument(stemmer.stem(productText.toLowerCase()));
+        });
+        
+        let scores = [];
+        tfidf.tfidfs(stemmer.stem(query.toLowerCase()), (i, measure) => {
+            let product = products[i];
+            let productText = `${product.name} ${product.description}`;
+            let similarity = 1 - (levenshtein.get(query.toLowerCase(), productText.toLowerCase()) / Math.max(query.length, productText.length));
+            let finalScore = measure * 0.7 + similarity * 0.3;
+            scores.push({ product, score: finalScore });
+        });
+
+        scores.sort((a, b) => b.score - a.score);
+        let sortedProducts = scores.map(item => item.product);
+        const totalPages = Math.ceil(sortedProducts.length / productsPerPage);
+        res.render('index', {
+            products: sortedProducts.slice((page - 1) * productsPerPage, page * productsPerPage),
+            currentPage: page,
+            totalPages,
+            query
+        });
     } catch (err) {
-        console.error(err);
-        res.status(500).send("Internal Server Error");
+        res.status(500).send(err);
     }
 });
 
